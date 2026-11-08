@@ -25,7 +25,8 @@ public partial class MainWindow : Window
     const double JawOpen = 0.2, BackToIdle = 1.2, ThinkFor = 8;
     const double MinReadSeconds = 3, ReadCharsPerSecond = 25;
     // on her own: a zip somewhere else, and (Look: switch on her own) a change of form, every so often while quiet
-    static readonly (double, double) ZipEvery = (45, 150), FormEvery = (60, 180);
+    (double, double) ZipEvery => (_settings.ZipMin, _settings.ZipMax);
+    (double, double) FormEvery => (_settings.FormMin, _settings.FormMax);
     const double OtherScreenChance = 0.15, ZipAtLeast = 250;
 
     static readonly (string Name, double Body, double Face)[] Sizes =
@@ -76,6 +77,7 @@ public partial class MainWindow : Window
         {
             Settings.ReadOnly = true;
             (_settings.Form, _settings.Height, _settings.FaceWidth, _settings.ZipOnHerOwn) = ("body", 420, 340, false);
+            (_settings.FeetX, _settings.FeetY, _settings.FaceX, _settings.FaceY) = (null, null, null, null);
         }
         _voxta = new VoxtaLink(_settings);
         _speaker = new Speaker(_settings);
@@ -91,7 +93,10 @@ public partial class MainWindow : Window
             Close();
             return;
         }
-        _picker = new PosePicker(_poses) { ChangesOnHerOwn = _settings.IdlesOnHerOwn };
+        _picker = new PosePicker(_poses)
+        {
+            ChangesOnHerOwn = _settings.IdlesOnHerOwn, QuietFor = (_settings.IdleMin, _settings.IdleMax),
+        };
         _picker.Family = (Idles.FirstOrDefault(p => p.Name == _settings.Pose) ?? Idles.First()).Family;
         _fx = new BodyFx(Stage, Body, Strips, GhostCyan, GhostPink, ZapLine);
         _face = new FaceHud(_settings.ArtFolder, FaceCanvas) { ShowPanel = _settings.FacePanel };
@@ -122,20 +127,52 @@ public partial class MainWindow : Window
     async void RunDemo()
     {
         Log.Write("demo: start");
+        if (Environment.GetCommandLineArgs().Contains("--settings"))
+        {
+            OpenSettings();
+            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            // (a picture of it, for checking: settings-demo.png beside the log)
+            if (_settingsWindow?.Content is FrameworkElement page)
+            {
+                var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    (int)page.ActualWidth, (int)page.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                bmp.Render(page);
+                var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+                using var file = System.IO.File.Create(System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CapriDesktop", "settings-demo.png"));
+                png.Save(file);
+            }
+            Close();
+            return;
+        }
         var work = SystemParameters.WorkArea;
         SetFeet(new Point(work.Left + 300, work.Bottom));
+        Remember();
         async Task Wait(double s) => await Task.Delay(TimeSpan.FromSeconds(s));
+        void Where(string what) => Log.Write($"demo: {what}: {_form} at {FeetNow().X:0},{FeetNow().Y:0}");
         await Wait(2);
         StartZap("body", new Point(work.Left + 900, work.Bottom));
-        await Wait(2.5);
-        Resize(() => Stage.Height = _settings.Height * 1.2);   // as the wheel does
-        await Wait(1.5);
+        await Wait(2);
+        Where("body zipped");
         _settings.Form = "face";      // as the Look menu does
-        await Wait(3);
-        StartZap("face", new Point(work.Left + 500, work.Bottom - 250));
-        await Wait(3);
+        await Wait(2);
+        Where("face first time");
+        SetFeet(new Point(work.Left + 450, work.Top + 500));   // as dragging her does
+        Remember();
+        Where("face put here");
+        ZipSomewhere();               // (her face: nothing)
+        await Wait(1.5);
+        Where("face after a zip asked for");
         _settings.Form = "body";
-        await Wait(2.5);
+        await Wait(2);
+        Where("body back");
+        ZipSomewhere();
+        await Wait(2);
+        Where("body zipped again");
+        _settings.Form = "face";
+        await Wait(2);
+        Where("face back");
         Log.Write("demo: done");
         Close();
     }
@@ -485,25 +522,32 @@ public partial class MainWindow : Window
             if (_formAt < 0) _formAt = now + Within(FormEvery);
             if (now >= _formAt && Quiet) { _formAt = -1; SwitchTo(_form == "body" ? "face" : "body"); return; }
         }
-        if (_settings.ZipOnHerOwn)
+        // (only her full self zips about; her face stays where you put it)
+        if (_settings.ZipOnHerOwn && _form == "body")
         {
             if (_zipAt < 0) _zipAt = now + Within(ZipEvery);
             if (now >= _zipAt && Quiet) { _zipAt = -1; ZipSomewhere(); }
         }
     }
 
-    void ZipSomewhere() => StartZap(_form, ZipSpot(_form));
-
-    /// <summary>Into her other form, where she is: her face where her body was (a little up from the taskbar), her
-    /// body down on the taskbar under where her face was.</summary>
-    void SwitchTo(string form)
+    void ZipSomewhere()
     {
+        if (_form == "body") StartZap("body", ZipSpot("body"));
+    }
+
+    /// <summary>Into her other form, at its own spot: her face where you last put it, her body where it last was.
+    /// (The first time: her face a little up from where her body is, her body on the taskbar under her face.)</summary>
+    void SwitchTo(string form) => StartZap(form, SpotOf(form));
+
+    Point SpotOf(string form)
+    {
+        var (x, y) = form == "face" ? (_settings.FaceX, _settings.FaceY) : (_settings.FeetX, _settings.FeetY);
+        if (x is { } sx && y is { } sy && OnSomeScreen(sx, sy)) return new Point(sx, sy);
         var area = Screens.At(this, HerMiddle());
         var feet = FeetNow();
-        Point spot = form == "body"
+        return form == "body"
             ? new Point(feet.X, area.Bottom)
             : new Point(feet.X, Math.Min(area.Bottom, Math.Max(area.Top + FaceHeight() + 190, feet.Y - 160)));
-        StartZap(form, spot);
     }
 
     double Within((double, double) r) => r.Item1 + _rng.NextDouble() * (r.Item2 - r.Item1);
@@ -551,7 +595,9 @@ public partial class MainWindow : Window
 
     void PlaceAtStart()
     {
-        if (_settings.FeetX is { } x && _settings.FeetY is { } y && OnSomeScreen(x, y)) SetFeet(new Point(x, y));
+        var (x, y) = _form == "face" ? (_settings.FaceX, _settings.FaceY) : (_settings.FeetX, _settings.FeetY);
+        if (x is { } sx && y is { } sy && OnSomeScreen(sx, sy)) SetFeet(new Point(sx, sy));
+        else if (_form == "face") { SetFeet(SpotOf("face")); Remember(); }
         else StandOnTaskbar();
     }
 
@@ -578,11 +624,12 @@ public partial class MainWindow : Window
         Remember();
     }
 
+    /// <summary>Where she is now, kept for the form she's in.</summary>
     void Remember()
     {
         var feet = FeetNow();
-        _settings.FeetX = feet.X;
-        _settings.FeetY = feet.Y;
+        if (_form == "face") (_settings.FaceX, _settings.FaceY) = (feet.X, feet.Y);
+        else (_settings.FeetX, _settings.FeetY) = (feet.X, feet.Y);
         _settings.Save();
     }
 
@@ -597,12 +644,15 @@ public partial class MainWindow : Window
             i.Click += (_, _) => click();
             return i;
         }
+        var refresh = new List<Action>();   // (ticks brought up to date as the menu opens: Settings can change them)
         MenuItem Toggle(string header, Func<bool> get, Action<bool> set)
         {
             var i = new MenuItem { Header = header, IsCheckable = true, IsChecked = get() };
-            i.Click += (_, _) => { set(i.IsChecked); _settings.Save(); };
+            i.Click += (_, _) => { set(i.IsChecked); _settings.Save(); ApplySettings(); };
+            refresh.Add(() => i.IsChecked = get());
             return i;
         }
+        menu.Opened += (_, _) => refresh.ForEach(r => r());
 
         menu.Items.Add(Item("Talk to her", OpenInput));
         menu.Items.Add(Toggle("Mic (talk to her out loud)", () => _settings.Mic, v =>
@@ -671,7 +721,9 @@ public partial class MainWindow : Window
         menu.Items.Add(sizes);
         menu.Items.Add(new Separator());
 
-        menu.Items.Add(Item("Zip somewhere", ZipSomewhere));
+        var zip = Item("Zip somewhere", ZipSomewhere);
+        refresh.Add(() => zip.IsEnabled = _form == "body");   // (her face stays put)
+        menu.Items.Add(zip);
         menu.Items.Add(Toggle("Zip around on her own", () => _settings.ZipOnHerOwn, v => { _settings.ZipOnHerOwn = v; _zipAt = -1; }));
         menu.Items.Add(Toggle("Change idles on her own", () => _settings.IdlesOnHerOwn, v => _settings.IdlesOnHerOwn = _picker.ChangesOnHerOwn = v));
         menu.Items.Add(Toggle("Glitches", () => _settings.Glitches, v => _settings.Glitches = v));
@@ -683,9 +735,30 @@ public partial class MainWindow : Window
                 _form == "body" ? work.Bottom : work.Bottom - 40));
         }));
         menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Settings…", OpenSettings));
         menu.Items.Add(Item("Quit", Close));
 
         ContextMenu = menu;
+    }
+
+    SettingsWindow? _settingsWindow;
+
+    void OpenSettings()
+    {
+        if (_settingsWindow is { IsVisible: true }) { _settingsWindow.Activate(); return; }
+        _settingsWindow = new SettingsWindow(_settings, ApplySettings);
+        _settingsWindow.Show();
+    }
+
+    /// <summary>Settings changed (in the Settings window or the menu): her behaviour picks them up now.</summary>
+    void ApplySettings()
+    {
+        _picker.ChangesOnHerOwn = _settings.IdlesOnHerOwn;
+        _picker.QuietFor = (_settings.IdleMin, _settings.IdleMax);
+        _face.ShowPanel = _settings.FacePanel;
+        _zipAt = _formAt = -1;   // the next zip and form change timed afresh
+        if (Math.Abs(FaceBox.Width - _settings.FaceWidth) > 0.5) Resize(() => FaceBox.Width = _settings.FaceWidth);
+        if (!_settings.Glitches) _fx.StopGlitch();
     }
 
     protected override async void OnClosed(EventArgs e)

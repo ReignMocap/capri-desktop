@@ -12,6 +12,9 @@ public sealed class Settings
     // where she stands: the middle of her feet, in screen pixels (so it holds when the window's size changes)
     public double? FeetX { get; set; }
     public double? FeetY { get; set; }
+    // where her face HUD is (its bottom middle): it stays where you put it; she only zips about in her full body
+    public double? FaceX { get; set; }
+    public double? FaceY { get; set; }
 
     // Voxta
     public string VoxtaUrl { get; set; } = "http://localhost:5384";
@@ -29,6 +32,15 @@ public sealed class Settings
     public bool Effects { get; set; } = true;         // zap and glitch sounds
     public bool ZipOnHerOwn { get; set; } = true;     // zips somewhere else now and then while quiet
     public bool IdlesOnHerOwn { get; set; } = true;   // settles into another idle (now and then turned away) while quiet
+
+    // Timings, as the game's Capri tab has them: { at least, at most } seconds, a random time in between each time.
+    public double ZipMin { get; set; } = 15;          // her zaps on her own (the game's wanderEvery)
+    public double ZipMax { get; set; } = 35;
+    public double FormMin { get; set; } = 40;         // each form for, when she switches on her own (formEvery)
+    public double FormMax { get; set; } = 120;
+    public double IdleMin { get; set; } = 20;         // quiet, before she settles into another idle
+    public double IdleMax { get; set; } = 40;
+    public double SfxVolume { get; set; } = 0.5;      // her zap and glitch sounds (0: off, 1: as made)
     public bool Mic { get; set; } = true;             // Voxta listens to the mic: talk to her out loud
 
     static string FilePath => Path.Combine(

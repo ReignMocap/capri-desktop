@@ -20,7 +20,7 @@ public sealed class Sfx(Settings settings)
         try
         {
             var reader = new WaveFileReader(new MemoryStream(wav));
-            var louder = new VolumeSampleProvider(reader.ToSampleProvider()) { Volume = (float)(gain * settings.Volume) };
+            var louder = new VolumeSampleProvider(reader.ToSampleProvider()) { Volume = (float)(gain * settings.SfxVolume) };
             var output = new WaveOut();
             output.PlaybackStopped += (_, _) => { output.Dispose(); reader.Dispose(); };
             output.Init(louder.ToWaveProvider());

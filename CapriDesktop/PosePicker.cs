@@ -16,7 +16,8 @@ public sealed class PosePicker
     public const double FlashSeconds = 0.8;
     const double OtherFamily = 0.2;
     const double BackChance = 0.12, SideChance = 0.05;
-    static readonly (double, double) NewFamilyQuiet = (20, 40);
+    /// <summary>Quiet, how long before she settles into another idle: { at least, at most } seconds.</summary>
+    public (double Min, double Max) QuietFor { get; set; } = (20, 40);
 
     // a mood word -> the kinds of picture that show it, best first (the game's FEELING)
     static readonly Dictionary<string, string[]> Feeling = new(StringComparer.OrdinalIgnoreCase)
@@ -105,7 +106,7 @@ public sealed class PosePicker
         if (ChangesOnHerOwn)
         {
             if (_nextFamilyAt < 0)
-                _nextFamilyAt = now + NewFamilyQuiet.Item1 + _rng.NextDouble() * (NewFamilyQuiet.Item2 - NewFamilyQuiet.Item1);
+                _nextFamilyAt = now + QuietFor.Min + _rng.NextDouble() * Math.Max(0, QuietFor.Max - QuietFor.Min);
             else if (now >= _nextFamilyAt)
             {
                 Family = OtherFamilyThan(Family);
