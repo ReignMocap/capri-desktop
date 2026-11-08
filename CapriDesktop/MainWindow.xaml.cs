@@ -119,7 +119,23 @@ public partial class MainWindow : Window
             if (_form == "face") _face.SwitchOn(Now);
             if (Demo) RunDemo();
             else WireVoxta();
+            ListenForAnotherStart();
         };
+    }
+
+    /// <summary>Started again while she's up: she zaps where she stands, to show she's here.</summary>
+    void ListenForAnotherStart()
+    {
+        if (App.WakeSignal is not { } wake) return;
+        new Thread(() =>
+        {
+            while (wake.WaitOne())
+                Dispatcher.BeginInvoke(() =>
+                {
+                    Log.Write("started again: she's already here");
+                    StartZap(_form, FeetNow());
+                });
+        }) { IsBackground = true, Name = "capri-wake" }.Start();
     }
 
     // ---- a test run: python-free, mouse-free check of her zips and forms (CapriDesktop.exe --demo) ----
