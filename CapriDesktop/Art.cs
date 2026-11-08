@@ -23,7 +23,8 @@ public static class Art
         foreach (var dir in Directory.GetDirectories(folder).OrderBy(d => d))
         {
             var name = Path.GetFileName(dir);
-            if (!name.StartsWith("idle_") && !name.StartsWith("talk_")) continue;
+            // every picture of hers (<kind>_<n>: idle, talk, back, angry, wave...), not the face HUD's or sounds' folders
+            if (!name.Contains('_')) continue;
             var frames = new List<BitmapSource>();
             for (var k = 0; File.Exists(Path.Combine(dir, $"f{k}.png")); k++)
                 frames.Add(Png(Path.Combine(dir, $"f{k}.png")));

@@ -146,6 +146,7 @@ public partial class MainWindow : Window
             Close();
             return;
         }
+        if (Environment.GetCommandLineArgs().Contains("--poses")) { await PosesDemo(); Close(); return; }
         var work = SystemParameters.WorkArea;
         SetFeet(new Point(work.Left + 300, work.Bottom));
         Remember();
@@ -175,6 +176,57 @@ public partial class MainWindow : Window
         Where("face back");
         Log.Write("demo: done");
         Close();
+    }
+
+    /// <summary>--demo --poses: which pictures loaded, which her rules pick for a few sentences and quiet stretches,
+    /// each one put on screen and saved as a picture (poses-demo-*.png beside the log).</summary>
+    async Task PosesDemo()
+    {
+        var kinds = _poses.GroupBy(p => p.Name.Split('_')[0]).Select(g => $"{g.Key} {g.Count()}");
+        Log.Write("demo: loaded " + string.Join(", ", kinds));
+        var picks = new List<(string Why, Pose Pose)>();
+        foreach (var (text, affect) in new[] { ("Hi there, choom!", (string?)null), ("Get lost.", "angry"),
+                     ("Ha, you wish.", "laughing"), ("Look over there!", null), ("Nice one.", null),
+                     ("Oh. Um.", "embarrassed"), ("Come here, you.", "flirty") })
+        {
+            var (pose, flash) = _picker.ForLine(text, affect, null);
+            picks.Add(($"\"{text}\" ({affect ?? "-"})", flash ?? pose));
+        }
+        if (_picker.Think(null) is { } think) picks.Add(("thinking", think));
+        // calm sentences and quiet stretches, many times over: how often she's turned away
+        var turned = new Dictionary<string, int>();
+        for (var i = 0; i < 400; i++)
+        {
+            var p = _picker.ForLine("Sure.", null, null).Pose;
+            var k = p.Name.Split('_')[0];
+            turned[k] = turned.GetValueOrDefault(k) + 1;
+        }
+        Log.Write("demo: 400 calm sentences: " + string.Join(", ", turned.Select(t => $"{t.Key} {t.Value}")));
+        _picker.QuietFor = (0, 0);
+        Pose? back = null;
+        for (var i = 0; i < 300 && back is null; i++)
+        {
+            var q = _picker.Quiet(i * 2.0);
+            if (q.Name.StartsWith("back_") || q.Name.StartsWith("side_")) back = q;
+        }
+        if (back is not null) picks.Add(("quiet, turned away", back));
+        var dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CapriDesktop");
+        var n = 0;
+        foreach (var (why, pose) in picks)
+        {
+            Log.Write($"demo: {why} -> {pose.Name}");
+            _linePose = pose;
+            _flash = null;
+            _backToIdleAt = Now + 10;
+            await Task.Delay(400);
+            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                (int)Stage.ActualWidth, (int)Stage.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bmp.Render(Stage);
+            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+            using var file = System.IO.File.Create(System.IO.Path.Combine(dir, $"poses-demo-{n++}.png"));
+            png.Save(file);
+        }
     }
 
     double Now => _clock.Elapsed.TotalSeconds;
