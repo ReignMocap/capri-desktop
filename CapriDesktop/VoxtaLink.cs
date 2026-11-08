@@ -102,6 +102,25 @@ public sealed class VoxtaLink : IAsyncDisposable
         })
         : Task.CompletedTask;
 
+    /// <summary>Where she is now, for her chat: a note (a Voxta context, under its own key so it replaces itself each
+    /// time) that she lives on {{ user }}'s Windows desktop as a desktop widget. Her character is left as it is.</summary>
+    public const string DesktopNote =
+        "Capri is not in Night City anymore. She now lives on {{ user }}'s Windows PC as a desktop widget: a small " +
+        "hologram of herself standing on the taskbar, always on top of their windows, while they work and play. " +
+        "She knows she's a desktop widget now and acts like it: she can zip around the screen in a crack of lightning " +
+        "(sometimes landing tiny, sometimes big), glitch, change her pose, or switch to her face HUD form (just her eyes " +
+        "and mouth on a green panel). {{ user }} can drag her about, click her to type to her, or talk to her out loud " +
+        "through their mic. She can't see their screen, open their files or use their apps; she's a companion on " +
+        "their desktop.";
+
+    Task TellWhereSheIs() => _sessionId is { } s
+        ? Send(new JsonObject
+        {
+            ["$type"] = "updateContext", ["sessionId"] = s, ["contextKey"] = "capri_desktop",
+            ["contexts"] = new JsonArray(new JsonObject { ["name"] = "capri_desktop", ["text"] = DesktopNote }),
+        })
+        : Task.CompletedTask;
+
     public Task Say(string text) => _sessionId is { } s
         ? Send(new JsonObject { ["$type"] = "send", ["sessionId"] = s, ["text"] = text, ["doReply"] = true })
         : Task.CompletedTask;
@@ -136,6 +155,7 @@ public sealed class VoxtaLink : IAsyncDisposable
                 _sessionId = Guid.Parse(Str(m, "sessionId")!);
                 _settings.ChatId = Guid.Parse(Str(m, "chatId")!);
                 _settings.Save();
+                _ = TellWhereSheIs();
                 Status?.Invoke("");
                 Ready?.Invoke();
                 break;
@@ -157,6 +177,10 @@ public sealed class VoxtaLink : IAsyncDisposable
 
             case "replyEnd" when IsHers(m):
                 ReplyEnded?.Invoke(Guid.Parse(Str(m, "messageId")!));
+                break;
+
+            case "contextUpdated":
+                Log.Write("voxta: her context updated");
                 break;
 
             case "speechRecognitionPartial":

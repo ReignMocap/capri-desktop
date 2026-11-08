@@ -41,6 +41,11 @@ public sealed class Settings
     public double IdleMin { get; set; } = 20;         // quiet, before she settles into another idle
     public double IdleMax { get; set; } = 40;
     public double SfxVolume { get; set; } = 0.5;      // her zap and glitch sounds (0: off, 1: as made)
+    public double Opacity { get; set; } = 1.0;        // how solid she is (her body and face; not her speech bubble)
+    // she lands from a zip at a random size: { at least, at most } px tall
+    public bool RandomSize { get; set; } = true;
+    public double SizeMin { get; set; } = 80;
+    public double SizeMax { get; set; } = 520;
     public bool Mic { get; set; } = true;             // Voxta listens to the mic: talk to her out loud
 
     static string FilePath => Path.Combine(

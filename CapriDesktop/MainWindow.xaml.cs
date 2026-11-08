@@ -58,6 +58,7 @@ public partial class MainWindow : Window
         public required string From { get; init; }
         public required string To { get; init; }
         public Point? Feet { get; init; }         // where she lands (bottom middle), or null: where she is
+        public double? Height { get; init; }      // the size she lands at (her full self), or null: as she was
         public bool Applied { get; set; }
         public double InAt { get; set; }
     }
@@ -102,6 +103,7 @@ public partial class MainWindow : Window
         _face = new FaceHud(_settings.ArtFolder, FaceCanvas) { ShowPanel = _settings.FacePanel };
         Stage.Height = _settings.Height;
         FaceBox.Width = _settings.FaceWidth;
+        Holder.Opacity = Math.Clamp(_settings.Opacity, 0.15, 1);
         if (_settings.Form == "face" && _face.Loaded) ShowForm("face");
         _breathStart = Now;
         ScheduleBlink(Now);
@@ -147,6 +149,20 @@ public partial class MainWindow : Window
             return;
         }
         if (Environment.GetCommandLineArgs().Contains("--poses")) { await PosesDemo(); Close(); return; }
+        if (Environment.GetCommandLineArgs().Contains("--sizes"))
+        {
+            // five zips, each to a random size (60-520 px tall here)
+            (_settings.RandomSize, _settings.SizeMin, _settings.SizeMax) = (true, 60, 520);
+            for (var i = 0; i < 5; i++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+                ZipSomewhere();
+                await Task.Delay(TimeSpan.FromSeconds(1.2));
+                Log.Write($"demo: landed {Stage.ActualHeight:0} px tall, {ActualWidth:0} x {ActualHeight:0} window, feet {FeetNow().X:0},{FeetNow().Y:0}");
+            }
+            Close();
+            return;
+        }
         var work = SystemParameters.WorkArea;
         SetFeet(new Point(work.Left + 300, work.Bottom));
         Remember();
@@ -471,12 +487,12 @@ public partial class MainWindow : Window
 
     /// <summary>Off somewhere else, and/or into her other form: torn apart into a line of light (her face: switched
     /// off), lightning to where she lands, and back together there (her face: switched on).</summary>
-    void StartZap(string to, Point? feet)
+    void StartZap(string to, Point? feet, double? height = null)
     {
         if (_zap is not null) return;
         if (to == "face" && !_face.Loaded) to = "body";
         var now = Now;
-        _zap = new Zap { At = now, From = _form, To = to, Feet = feet };
+        _zap = new Zap { At = now, From = _form, To = to, Feet = feet, Height = height };
         _fx.StopGlitch();
         if (_form == "face") { _face.SwitchOff(now); _sfx.Play("capri_zap_out", 0.3); }
         else _sfx.Play("capri_zap_out");
@@ -503,6 +519,7 @@ public partial class MainWindow : Window
             if (z.To == "body")
             {
                 _picker.NewFamily();   // up in another idle as she lands, as in the game
+                if (z.Height is { } h) Stage.Height = _settings.Height = h;
                 TickBody(now);
                 _fx.In(Frame.Source, now, 0);
             }
@@ -584,7 +601,12 @@ public partial class MainWindow : Window
 
     void ZipSomewhere()
     {
-        if (_form == "body") StartZap("body", ZipSpot("body"));
+        if (_form != "body") return;
+        // (now and then tiny, now and then big: a random size in the range set, when that's on)
+        double? size = _settings.RandomSize
+            ? Math.Round(Within((Math.Min(_settings.SizeMin, _settings.SizeMax), Math.Max(_settings.SizeMin, _settings.SizeMax))))
+            : null;
+        StartZap("body", ZipSpot("body"), size);
     }
 
     /// <summary>Into her other form, at its own spot: her face where you last put it, her body where it last was.
@@ -629,7 +651,7 @@ public partial class MainWindow : Window
     {
         if (!Holder.IsMouseOver || _zap is not null) return;
         var f = Math.Pow(1.1, e.Delta / 120.0);
-        if (_form == "body") Resize(() => Stage.Height = _settings.Height = Math.Clamp(_settings.Height * f, 150, 1100));
+        if (_form == "body") Resize(() => Stage.Height = _settings.Height = Math.Clamp(_settings.Height * f, 60, 1100));
         else Resize(() => FaceBox.Width = _settings.FaceWidth = Math.Clamp(_settings.FaceWidth * f, 140, 1200));
         e.Handled = true;
     }
@@ -808,6 +830,7 @@ public partial class MainWindow : Window
         _picker.ChangesOnHerOwn = _settings.IdlesOnHerOwn;
         _picker.QuietFor = (_settings.IdleMin, _settings.IdleMax);
         _face.ShowPanel = _settings.FacePanel;
+        Holder.Opacity = Math.Clamp(_settings.Opacity, 0.15, 1);
         _zipAt = _formAt = -1;   // the next zip and form change timed afresh
         if (Math.Abs(FaceBox.Width - _settings.FaceWidth) > 0.5) Resize(() => FaceBox.Width = _settings.FaceWidth);
         if (!_settings.Glitches) _fx.StopGlitch();

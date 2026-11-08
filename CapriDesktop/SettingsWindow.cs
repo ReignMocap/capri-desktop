@@ -31,6 +31,9 @@ public sealed class SettingsWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Content = new ScrollViewer { Content = _body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 760 };
 
+        Heading("See-through");
+        Slider("How solid she is (her speech bubble stays solid)", 15, 100, _s.Opacity * 100, "%", v => _s.Opacity = v / 100);
+
         Heading("Sounds");
         Slider("Her zap and glitch sounds", 0, 100, _s.SfxVolume * 100, "%", v => _s.SfxVolume = v / 100);
 
@@ -38,6 +41,10 @@ public sealed class SettingsWindow : Window
         Check("She zips around on her own", _s.ZipOnHerOwn, v => _s.ZipOnHerOwn = v);
         Range("Her zaps on her own (seconds)", 3, 120, () => (_s.ZipMin, _s.ZipMax), (a, b) => (_s.ZipMin, _s.ZipMax) = (a, b));
         Hint("Each time she picks a random time between the two. Only her full body zips about; her face HUD stays where you put it.");
+        Check("She lands at a random size", _s.RandomSize, v => _s.RandomSize = v);
+        Range("Her size when she lands (px tall)", 60, 1000, () => (_s.SizeMin, _s.SizeMax),
+            (a, b) => (_s.SizeMin, _s.SizeMax) = (a, b), " px");
+        Hint("Each zip, a size between the two: tiny now and then, big now and then. The mouse wheel still sets it by hand.");
 
         Heading("Her form");
         var forms = new WrapPanel { Margin = new Thickness(0, 2, 0, 4) };
@@ -114,7 +121,8 @@ public sealed class SettingsWindow : Window
     }
 
     /// <summary>An { at least, at most } pair, as the game's tab has them: moving one past the other takes it along.</summary>
-    FrameworkElement Range(string label, double min, double max, Func<(double, double)> get, Action<double, double> set)
+    FrameworkElement Range(string label, double min, double max, Func<(double, double)> get, Action<double, double> set,
+        string unit = " s")
     {
         var box = new StackPanel { Margin = new Thickness(0, 2, 0, 6) };
         box.Children.Add(new TextBlock { Text = label, Foreground = Text, Margin = new Thickness(0, 0, 0, 2) });
@@ -124,8 +132,8 @@ public sealed class SettingsWindow : Window
         var busy = false;
         void Show()
         {
-            at.Text = $"at least {a.Value:0} s";
-            bt.Text = $"at most {b.Value:0} s";
+            at.Text = $"at least {a.Value:0}{unit}";
+            bt.Text = $"at most {b.Value:0}{unit}";
         }
         Show();
         at.Width = bt.Width = 110;
