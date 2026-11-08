@@ -1,0 +1,59 @@
+<Window x:Class="CapriDesktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Capri"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        RenderOptions.BitmapScalingMode="HighQuality">
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Room above her for her speech bubble and the type box. Empty, it's see-through and clicks
+                 pass through it, so it costs nothing to keep. -->
+            <RowDefinition Height="190" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Width="320" VerticalAlignment="Bottom" Margin="0,0,0,4">
+            <Border x:Name="Bubble" Visibility="Collapsed" CornerRadius="12" Padding="12,8"
+                    Background="#E6101418" BorderBrush="#FF03F994" BorderThickness="1.5">
+                <ScrollViewer x:Name="BubbleScroll" MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="BubbleText" Foreground="#FFEFFFF7" FontSize="14" TextWrapping="Wrap"
+                               FontFamily="Segoe UI" />
+                </ScrollViewer>
+            </Border>
+            <TextBlock x:Name="StatusText" Visibility="Collapsed" Foreground="#FFB0C4BC" FontSize="11"
+                       Margin="4,4,4,0" TextWrapping="Wrap" />
+            <Border x:Name="InputBox" Visibility="Collapsed" Margin="0,4,0,0" CornerRadius="8"
+                    Background="#F0101418" BorderBrush="#FFFF2D55" BorderThickness="1.5">
+                <TextBox x:Name="Input" Background="Transparent" BorderThickness="0" Foreground="White"
+                         CaretBrush="White" FontSize="14" Padding="8,6" FontFamily="Segoe UI" />
+            </Border>
+        </StackPanel>
+
+        <Grid x:Name="Holder" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+            <!-- Her full self. Bottom to top: her two colour ghosts (glitches), her picture (breathing frame, the next
+                 fading in, her blink), the bands she tears into, the line of light she zaps through. -->
+            <Grid x:Name="Stage">
+                <Rectangle x:Name="GhostCyan" Fill="#FF33FFFF" Opacity="0" />
+                <Rectangle x:Name="GhostPink" Fill="#FFFF4099" Opacity="0" />
+                <Grid x:Name="Body">
+                    <Image x:Name="Frame" Stretch="Uniform" />
+                    <Image x:Name="NextFrame" Stretch="Uniform" />
+                    <Image x:Name="Blink" Stretch="Uniform" Visibility="Hidden" />
+                </Grid>
+                <Grid x:Name="Strips" />
+                <Rectangle x:Name="ZapLine" Fill="#FFFFBFF2" Opacity="0"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
+            <!-- Her face HUD: eyes on their panel, her mouth under them (built by FaceHud). -->
+            <Viewbox x:Name="FaceBox" Visibility="Collapsed" Stretch="Uniform">
+                <Canvas x:Name="FaceCanvas" />
+            </Viewbox>
+        </Grid>
+    </Grid>
+</Window>
