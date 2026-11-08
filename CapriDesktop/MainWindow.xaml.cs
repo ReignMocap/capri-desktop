@@ -91,7 +91,7 @@ public partial class MainWindow : Window
             Close();
             return;
         }
-        _picker = new PosePicker(_poses);
+        _picker = new PosePicker(_poses) { ChangesOnHerOwn = _settings.IdlesOnHerOwn };
         _picker.Family = (Idles.FirstOrDefault(p => p.Name == _settings.Pose) ?? Idles.First()).Family;
         _fx = new BodyFx(Stage, Body, Strips, GhostCyan, GhostPink, ZapLine);
         _face = new FaceHud(_settings.ArtFolder, FaceCanvas) { ShowPanel = _settings.FacePanel };
@@ -155,6 +155,7 @@ public partial class MainWindow : Window
         _voxta.ReplyChunk += (line, url) => Ui(() => _speaker.Add(line, url));
         _voxta.ReplyEnded += id => Ui(() => _speaker.ReplyEnded(id));
         _voxta.Interrupted += () => Ui(_speaker.Interrupt);
+        _voxta.Heard += (text, done) => Ui(() => OnHeard(text, done));
         _speaker.LineStarted += OnLineStarted;
         _speaker.LineEnded += _ => _backToIdleAt = Now + BackToIdle;
         _speaker.MessageFinished += id =>
@@ -270,12 +271,34 @@ public partial class MainWindow : Window
 
     Pose PictureNow(double now)
     {
-        if (_flash is not null && now < _flashUntil) return _flash;
-        if (_linePose is not null && (_speaker.Busy || now < _backToIdleAt)) return _linePose;
+        if (_flash is not null && now < _flashUntil) { _picker.Busy(); return _flash; }
+        if (_linePose is not null && (_speaker.Busy || now < _backToIdleAt)) { _picker.Busy(); return _linePose; }
         _linePose = null;
         if (Thinking && _picker.Think(null) is { } think)
+        {
+            _picker.Busy();
             return _shown is { } s && s.Name.StartsWith("think_") ? s : think;
-        return _picker.Idle;
+        }
+        return _picker.Quiet(now);
+    }
+
+    /// <summary>What Voxta hears you say on the mic, in her bubble as you say it. Once you're done it goes to her as
+    /// your message (Voxta only transcribes; sending it is the app's job, as in Voxta's own web app), and she thinks.</summary>
+    void OnHeard(string text, bool done)
+    {
+        text = text.Trim();
+        if (text == "") return;
+        _said.Clear();
+        BubbleText.Text = $"“{text}”";
+        Bubble.Visibility = Visibility.Visible;
+        BubbleScroll.ScrollToEnd();
+        _bubbleHideAt = -1;
+        if (!done) return;
+        Log.Write($"heard: {text}");
+        if (!_voxta.IsReady) return;
+        _speaker.Interrupt();      // you talked over her
+        _ = _voxta.Say(text);
+        _thinkingUntil = Now + ThinkFor;
     }
 
     /// <summary>Her voice's mouth channels now; with no voice (switched off, or it didn't come) while she's saying
@@ -582,6 +605,12 @@ public partial class MainWindow : Window
         }
 
         menu.Items.Add(Item("Talk to her", OpenInput));
+        menu.Items.Add(Toggle("Mic (talk to her out loud)", () => _settings.Mic, v =>
+        {
+            _settings.Mic = v;
+            _settings.Save();
+            _ = _voxta.Reconnect();
+        }));
         menu.Items.Add(Toggle("Voice", () => _settings.Voice, v => _settings.Voice = v));
         var volume = new MenuItem { Header = "Volume" };
         foreach (var (name, v) in Volumes)
@@ -612,7 +641,7 @@ public partial class MainWindow : Window
         foreach (var p in Idles)
         {
             var item = new MenuItem { Header = p.Name.Replace("idle_", "Idle "), IsCheckable = true, Tag = p };
-            item.Click += (_, _) => { _picker.Family = p.Family; _settings.Pose = p.Name; _settings.Save(); };
+            item.Click += (_, _) => { _picker.SetFamily(p.Family); _settings.Pose = p.Name; _settings.Save(); };
             poses.Items.Add(item);
         }
         poses.SubmenuOpened += (_, _) =>
@@ -644,6 +673,7 @@ public partial class MainWindow : Window
 
         menu.Items.Add(Item("Zip somewhere", ZipSomewhere));
         menu.Items.Add(Toggle("Zip around on her own", () => _settings.ZipOnHerOwn, v => { _settings.ZipOnHerOwn = v; _zipAt = -1; }));
+        menu.Items.Add(Toggle("Change idles on her own", () => _settings.IdlesOnHerOwn, v => _settings.IdlesOnHerOwn = _picker.ChangesOnHerOwn = v));
         menu.Items.Add(Toggle("Glitches", () => _settings.Glitches, v => _settings.Glitches = v));
         menu.Items.Add(Toggle("Sound effects", () => _settings.Effects, v => _settings.Effects = v));
         menu.Items.Add(Item("Back to the taskbar", () =>

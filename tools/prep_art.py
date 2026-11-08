@@ -45,11 +45,12 @@ def load(path):
 
 
 # The pictures a desktop Capri uses: standing, talking, and her moods and gestures. (The game's fly_, float_,
-# kick_, sit_, back_ and side_ are for moving about in Night City.)
+# kick_ and sit_ are for moving about in Night City.)
 KINDS = ("idle", "talk", "angry", "annoyed", "cast", "flirty", "laugh", "peace", "point", "think", "thumbs", "wave",
-         "embarrassed", "love")
-# Pictures whose eyes aren't her usual open visor eyes (closed, squinting): no blink, as in the game (NO_BLINK).
-NO_BLINK = ("laugh_", "angry_", "love_")
+         "embarrassed", "love", "back", "side")
+# Pictures whose eyes aren't her usual open visor eyes (closed, squinting, turned away): no blink, as in the game
+# (NO_BLINK; back_4 blinks there but not with its mouth open, so here not at all).
+NO_BLINK = ("laugh_", "angry_", "love_", "side_1", "back_4")
 
 
 def tidy(stem):

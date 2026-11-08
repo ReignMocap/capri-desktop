@@ -25,6 +25,16 @@ public sealed class VoxtaLink : IAsyncDisposable
     public event Action<Line, string?>? ReplyChunk;     // one sentence, and its audio's address (relative to Voxta)
     public event Action<Guid>? ReplyEnded;
     public event Action? Interrupted;                    // Voxta says stop talking (or dropped the reply)
+    public event Action<string, bool>? Heard;            // what Voxta heard you say on the mic so far, and whether you're done
+
+    /// <summary>The mic switched on or off: connect again, so Voxta hears (or stops hearing) it; her chat picks up
+    /// where it was.</summary>
+    public async Task Reconnect()
+    {
+        if (_hub is null) return;
+        _sessionId = null;
+        try { await _hub.StopAsync(); } catch (Exception) { /* Closed reconnects */ }
+    }
 
     public bool IsReady => _sessionId is not null;
 
@@ -70,13 +80,14 @@ public sealed class VoxtaLink : IAsyncDisposable
     {
         ["$type"] = "authenticate",
         ["client"] = "CapriDesktop",
-        ["clientVersion"] = "0.3",
+        ["clientVersion"] = "0.4",
         ["scope"] = new JsonArray("role:app"),
         // Her voice comes as a link to a wav per sentence, which we download and play ourselves ("Url"; "None" would
-        // make Voxta play it on its own speakers, with no lip sync). No mic yet ("None" would make Voxta record it).
+        // make Voxta play it on its own speakers, with no lip sync). The mic: "None" has Voxta record it itself (its
+        // own audio input, speech to text, listening again after she's spoken); "Disabled" is no mic.
         ["capabilities"] = new JsonObject
         {
-            ["audioInput"] = "Disabled",
+            ["audioInput"] = _settings.Mic ? "None" : "Disabled",
             ["audioOutput"] = "Url",
             ["acceptedAudioContentTypes"] = new JsonArray("audio/x-wav"),
         },
@@ -146,6 +157,14 @@ public sealed class VoxtaLink : IAsyncDisposable
 
             case "replyEnd" when IsHers(m):
                 ReplyEnded?.Invoke(Guid.Parse(Str(m, "messageId")!));
+                break;
+
+            case "speechRecognitionPartial":
+                Heard?.Invoke(Str(m, "text") ?? "", false);
+                break;
+
+            case "speechRecognitionEnd":
+                Heard?.Invoke(Str(m, "text") ?? "", true);
                 break;
 
             case "interruptSpeech" or "replyCancelled":

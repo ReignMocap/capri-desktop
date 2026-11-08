@@ -28,6 +28,8 @@ public sealed class Settings
     public bool Glitches { get; set; } = true;
     public bool Effects { get; set; } = true;         // zap and glitch sounds
     public bool ZipOnHerOwn { get; set; } = true;     // zips somewhere else now and then while quiet
+    public bool IdlesOnHerOwn { get; set; } = true;   // settles into another idle (now and then turned away) while quiet
+    public bool Mic { get; set; } = true;             // Voxta listens to the mic: talk to her out loud
 
     static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CapriDesktop", "settings.json");

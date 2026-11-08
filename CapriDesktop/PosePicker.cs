@@ -8,11 +8,15 @@ namespace CapriDesktop;
 ///   2. how she feels (the sentence's mood word from Voxta), if there's a picture for it, else
 ///   3. calm talking: her idle with her mouth moving, or one of its family's gestures; now and then another family.
 /// Never the same picture twice in a row when there's another. A picture with no mouth-open version is a flash:
-/// shown for a moment at the sentence's start, then a calm one. (The game's back_ and side_ turns are left out.)</summary>
+/// shown for a moment at the sentence's start, then a calm one. Her back to you, looking over her shoulder (back_), or
+/// side on (side_): now and then on a calm sentence or a quiet stretch. Quiet, she stands in her family's idle and
+/// moves to another family's every 20-40 s (when <see cref="ChangesOnHerOwn"/>).</summary>
 public sealed class PosePicker
 {
     public const double FlashSeconds = 0.8;
     const double OtherFamily = 0.2;
+    const double BackChance = 0.12, SideChance = 0.05;
+    static readonly (double, double) NewFamilyQuiet = (20, 40);
 
     // a mood word -> the kinds of picture that show it, best first (the game's FEELING)
     static readonly Dictionary<string, string[]> Feeling = new(StringComparer.OrdinalIgnoreCase)
@@ -65,8 +69,62 @@ public sealed class PosePicker
 
     public Pose Idle => _idleOf.GetValueOrDefault(Family) ?? _idleOf.Values.First();
 
-    /// <summary>Landing from a zap: up in another family's idle, as in the game.</summary>
-    public void NewFamily() => Family = OtherFamilyThan(Family);
+    /// <summary>Quiet, she settles into another idle now and then on her own.</summary>
+    public bool ChangesOnHerOwn { get; set; } = true;
+
+    Pose? _quietTurned;       // a quiet stretch with her back turned (or side on) instead of her idle
+    double _nextFamilyAt = -1;
+
+    /// <summary>Landing from a zap: up in another family's idle (now and then turned away), as in the game.</summary>
+    public void NewFamily()
+    {
+        Family = OtherFamilyThan(Family);
+        _nextFamilyAt = -1;
+        _quietTurned = BackOrSide(null);
+    }
+
+    /// <summary>You picked her idle: that one, facing you.</summary>
+    public void SetFamily(int family)
+    {
+        Family = family;
+        _quietTurned = null;
+        _nextFamilyAt = -1;
+    }
+
+    /// <summary>She's talking or thinking: the quiet stretch starts over after.</summary>
+    public void Busy()
+    {
+        _quietTurned = null;
+        _nextFamilyAt = -1;
+    }
+
+    /// <summary>Her picture while quiet: her family's idle, after a while another family's (now and then with her
+    /// back turned or side on instead).</summary>
+    public Pose Quiet(double now)
+    {
+        if (ChangesOnHerOwn)
+        {
+            if (_nextFamilyAt < 0)
+                _nextFamilyAt = now + NewFamilyQuiet.Item1 + _rng.NextDouble() * (NewFamilyQuiet.Item2 - NewFamilyQuiet.Item1);
+            else if (now >= _nextFamilyAt)
+            {
+                Family = OtherFamilyThan(Family);
+                _nextFamilyAt = -1;
+                _quietTurned = BackOrSide(null);
+                Log.Write($"quiet: now in {(_quietTurned ?? Idle).Name}");
+            }
+        }
+        return _quietTurned ?? Idle;
+    }
+
+    /// <summary>Now and then: her back turned, or side on (or null).</summary>
+    Pose? BackOrSide(Pose? now)
+    {
+        var r = _rng.NextDouble();
+        if (r < BackChance) return Pick("back", now);
+        if (r < BackChance + SideChance) return Pick("side", now);
+        return null;
+    }
     public Pose? Think(Pose? now) => Pick("think", now);
 
     /// <summary>The picture for a sentence, and the flash before it (or null).</summary>
@@ -90,6 +148,7 @@ public sealed class PosePicker
     /// another's when hers has nothing but the picture she's in.</summary>
     Pose Calm(Pose? now)
     {
+        if (BackOrSide(now) is { Mouth: not null } turned) return turned;
         if (_rng.NextDouble() < OtherFamily) Family = OtherFamilyThan(Family);
         var choices = Talkable(Family);
         if (choices.Count == 0 || (choices.Count == 1 && choices[0] == now))
