@@ -4,7 +4,7 @@
 
 One folder per picture she can stand in, all cropped to one shared box and shrunk to SCALE, so every layer lines up
 1:1 and her feet stay put between pictures:
-    idle_N/   f0.png (the pose, E:/VoxtaArt/Capri/recovered/idle_N.png), f1..f7.png (its breathing frames,
+    idle_N/   f0.png (the pose, from E:/VoxtaArt/Capri/newstyle or recovered), f1..f7.png (its breathing frames,
               E:/VoxtaArt/Capri/breathing/idle_N__bK.webp), m.png (mouth open), blink.png (eyes off)
     talk_Nx/  f0.png, m.png, blink.png: a talking gesture of idle_N's family (no breathing; she's talking)
 blink.png is made by blinks.py from the Cyberpunk module.
@@ -12,6 +12,7 @@ blink.png is made by blinks.py from the Cyberpunk module.
 import json
 import os
 import re
+import shutil
 import sys
 
 sys.dont_write_bytecode = True
@@ -47,7 +48,7 @@ def load(path):
 # The pictures a desktop Capri uses: standing, talking, and her moods and gestures. (The game's fly_, float_,
 # kick_ and sit_ are for moving about in Night City.)
 KINDS = ("idle", "talk", "angry", "annoyed", "cast", "flirty", "laugh", "peace", "point", "think", "thumbs", "wave",
-         "embarrassed", "love", "back", "side")
+         "embarrassed", "love", "back", "side", "angryidle")
 # Pictures whose eyes aren't her usual open visor eyes (closed, squinting, turned away): no blink, as in the game
 # (NO_BLINK; back_4 blinks there but not with its mouth open, so here not at all).
 NO_BLINK = ("laugh_", "angry_", "love_", "side_1", "back_4")
@@ -63,7 +64,8 @@ def tidy(stem):
 def pictures():
     """{folder name: {"frames": [...], "mouth": img or None}}"""
     out = {}
-    for folder in ("recovered", "newpics"):
+    # (newstyle first: its cast_ and think_ replace the old ones of the same name)
+    for folder in ("newstyle", "recovered", "newpics"):
         src = os.path.join(ART, folder)
         files = {os.path.splitext(f)[0]: f for f in os.listdir(src) if f.lower().endswith((".png", ".webp"))}
         for stem, f in sorted(files.items()):
@@ -92,6 +94,11 @@ def shrink(img, box):
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else r"E:\VoxtaArt\CapriDesktop"
     os.makedirs(out, exist_ok=True)
+    # (pictures made before and since dropped from her art, idle_1 and its gestures, go: every picture folder is
+    # made afresh below)
+    for d in os.listdir(out):
+        if "_" in d and os.path.exists(os.path.join(out, d, "f0.png")):
+            shutil.rmtree(os.path.join(out, d))
     pics = pictures()
     W, H = next(iter(pics.values()))["frames"][0].size
     # one shared box round her in every picture

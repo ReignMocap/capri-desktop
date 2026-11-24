@@ -8,8 +8,20 @@ namespace CapriDesktop;
 public sealed record Pose(string Name, BitmapSource[] Frames, BitmapSource? Mouth, BitmapSource? Blink)
 {
     public bool IsIdle => Name.StartsWith("idle_");
-    /// <summary>The idle number she belongs with: idle_3 and talk_3a are both family 3.</summary>
-    public int Family => Name.Length > 5 && char.IsDigit(Name[5]) ? Name[5] - '0' : 0;
+    /// <summary>The idle number she belongs with: idle_3 and talk_3a are both family 3, idle_12 is 12.</summary>
+    public int Family
+    {
+        get
+        {
+            var at = Name.IndexOf('_') + 1;
+            var n = 0;
+            while (at > 0 && at < Name.Length && char.IsDigit(Name[at])) n = n * 10 + (Name[at++] - '0');
+            return n;
+        }
+    }
+
+    /// <summary>Her kind of picture: idle, talk, cast, angryidle...</summary>
+    public string Kind => Name.Split('_')[0];
 }
 
 /// <summary>Her desktop art, made by tools/prep_art.py into E:\VoxtaArt\CapriDesktop (one folder per picture).</summary>

@@ -88,21 +88,65 @@ public sealed class PosePicker
     public void SetFamily(int family)
     {
         Family = family;
+        (_mood, _moodPose) = (null, null);
         _quietTurned = null;
         _nextFamilyAt = -1;
     }
 
     /// <summary>She's talking or thinking: the quiet stretch starts over after.</summary>
-    public void Busy()
+    public void Busy(double now)
     {
         _quietTurned = null;
         _nextFamilyAt = -1;
+        _lastSpokeAt = now;
+    }
+
+    // Her mood, as in the game (capri.lua moodAfter / moodIdle): after an angry sentence she stays angry, standing (and
+    // talking) in her angry idles (angryidle_<n>), until a sentence with another feeling, or MoodCool seconds quiet.
+    // Sentences with no feeling, or one close to it (annoyed, sighing), leave it as it is.
+    const double MoodCool = 45;
+    static readonly HashSet<string> MoodKeeps = new(StringComparer.OrdinalIgnoreCase) { "annoyed", "sighing" };
+    string? _mood;
+    Pose? _moodPose;
+    double _lastSpokeAt = -1;
+
+    void MoodAfter(string? affect)
+    {
+        var a = (affect ?? "").Trim().ToLowerInvariant();
+        if (a == "angry" && _kinds.ContainsKey("angryidle"))
+        {
+            if (_mood != "angry") _moodPose = null;
+            _mood = "angry";
+        }
+        else if (a != "" && a != "neutral" && !MoodKeeps.Contains(a))
+            (_mood, _moodPose) = (null, null);
+    }
+
+    /// <summary>One of her mood's idles: quiet, the one she's in (one picked if none); talking, any that has a
+    /// speaking picture. Null with no mood.</summary>
+    Pose? MoodIdle(bool talking)
+    {
+        if (_mood is null || !_kinds.TryGetValue(_mood + "idle", out var list)) return null;
+        if (talking)
+        {
+            var p = PickFrom(list.Where(x => x.Mouth is not null).ToList(), _moodPose);
+            if (p is not null) _moodPose = p;
+            return p;
+        }
+        return _moodPose ??= PickFrom(list, null);
     }
 
     /// <summary>Her picture while quiet: her family's idle, after a while another family's (now and then with her
     /// back turned or side on instead).</summary>
     public Pose Quiet(double now)
     {
+        // still in a mood: its idle, until she cools off
+        if (_mood is not null && _lastSpokeAt >= 0 && now - _lastSpokeAt >= MoodCool)
+        {
+            Log.Write($"mood: no longer {_mood}");
+            (_mood, _moodPose) = (null, null);
+        }
+        if (MoodIdle(false) is { } moody) return moody;
         if (ChangesOnHerOwn)
         {
             if (_nextFamilyAt < 0)
@@ -131,12 +175,15 @@ public sealed class PosePicker
     /// <summary>The picture for a sentence, and the flash before it (or null).</summary>
     public (Pose Pose, Pose? Flash) ForLine(string text, string? affect, Pose? now)
     {
+        MoodAfter(affect);
         var kind = GestureFor(text);
         if (kind is null && affect is not null && Feeling.TryGetValue(affect, out var kinds))
             kind = kinds.FirstOrDefault(_kinds.ContainsKey);
+        // (still angry: her calm talking is in her angry idles)
+        var steady = MoodIdle(true);
         if (kind is not null && Pick(kind, now) is { } p)
-            return p.Mouth is not null ? (p, null) : (Calm(now), p);
-        return (Calm(now), null);
+            return p.Mouth is not null ? (p, null) : (steady ?? Calm(now), p);
+        return (steady ?? Calm(now), null);
     }
 
     string? GestureFor(string text)

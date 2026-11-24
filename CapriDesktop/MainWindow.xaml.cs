@@ -218,11 +218,18 @@ public partial class MainWindow : Window
         Log.Write("demo: loaded " + string.Join(", ", kinds));
         var picks = new List<(string Why, Pose Pose)>();
         foreach (var (text, affect) in new[] { ("Hi there, choom!", (string?)null), ("Get lost.", "angry"),
-                     ("Ha, you wish.", "laughing"), ("Look over there!", null), ("Nice one.", null),
-                     ("Oh. Um.", "embarrassed"), ("Come here, you.", "flirty") })
+                     ("Whatever.", null), ("Ugh, fine.", "sighing"), ("Ha, you wish.", "laughing"),
+                     ("Look over there!", null), ("Nice one.", null), ("Oh. Um.", "embarrassed"),
+                     ("Come here, you.", "flirty"), ("Let me fry their daemon.", null) })
         {
             var (pose, flash) = _picker.ForLine(text, affect, null);
             picks.Add(($"\"{text}\" ({affect ?? "-"})", flash ?? pose));
+            // (right after the angry ones: quiet, she should still stand angry)
+            if (affect is "sighing")
+            {
+                _picker.Busy(0);
+                picks.Add(("quiet, still angry", _picker.Quiet(1)));
+            }
         }
         if (_picker.Think(null) is { } think) picks.Add(("thinking", think));
         // calm sentences and quiet stretches, many times over: how often she's turned away
@@ -373,6 +380,12 @@ public partial class MainWindow : Window
             _shown = pose;
             NextFrame.Opacity = 0;
             if (pose.IsIdle) _settings.Pose = pose.Name;
+            // her cast and think pictures drawn as made or mirrored, a coin toss each time she goes into one (its
+            // speaking picture on the same side), as in the game; everything else as made
+            var mirrored = pose.Kind is "cast" or "think" && _rng.NextDouble() < 0.5;
+            Stage.RenderTransformOrigin = new Point(0.5, 0.5);
+            Stage.RenderTransform = mirrored ? new System.Windows.Media.ScaleTransform(-1, 1) : null;
+            if (pose.Kind is "cast" or "think") Log.Write($"  {pose.Name} {(mirrored ? "mirrored" : "as made")}");
         }
         if (_speaker.Current is not null && ReferenceEquals(pose, _linePose)) ShowMouth(pose, now);
         else if (pose.IsIdle && _speaker.Current is null) ShowBreath(pose, now);
@@ -392,12 +405,12 @@ public partial class MainWindow : Window
 
     Pose PictureNow(double now)
     {
-        if (_flash is not null && now < _flashUntil) { _picker.Busy(); return _flash; }
-        if (_linePose is not null && (_speaker.Busy || now < _backToIdleAt)) { _picker.Busy(); return _linePose; }
+        if (_flash is not null && now < _flashUntil) { _picker.Busy(now); return _flash; }
+        if (_linePose is not null && (_speaker.Busy || now < _backToIdleAt)) { _picker.Busy(now); return _linePose; }
         _linePose = null;
         if (Thinking && _picker.Think(null) is { } think)
         {
-            _picker.Busy();
+            _picker.Busy(now);
             return _shown is { } s && s.Name.StartsWith("think_") ? s : think;
         }
         return _picker.Quiet(now);
