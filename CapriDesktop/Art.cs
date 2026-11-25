@@ -27,7 +27,9 @@ public sealed record Pose(string Name, BitmapSource[] Frames, BitmapSource? Mout
 /// <summary>Her desktop art, made by tools/prep_art.py into E:\VoxtaArt\CapriDesktop (one folder per picture).</summary>
 public static class Art
 {
-    public const string DefaultFolder = @"E:\VoxtaArt\CapriDesktop";
+    /// <summary>Her art beside the app (the release zip's art folder). Made by tools/prep_art.py and
+    /// tools/prep_face.py, which write to E:\VoxtaArt\CapriDesktop; the release build copies it here.</summary>
+    public static string DefaultFolder => Path.Combine(AppContext.BaseDirectory, "art");
 
     public static List<Pose> Load(string folder)
     {

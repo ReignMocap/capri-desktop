@@ -48,18 +48,24 @@ public sealed class Settings
     public double SizeMax { get; set; } = 520;
     public bool Mic { get; set; } = true;             // Voxta listens to the mic: talk to her out loud
 
-    static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CapriDesktop", "settings.json");
+    /// <summary>Where her settings and log live: %AppData%\CapriDesktop (a --fresh test run: a new empty folder).</summary>
+    public static string Folder { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CapriDesktop");
+
+    static string FilePath => Path.Combine(Folder, "settings.json");
 
     public static Settings Load()
     {
+        var s = new Settings();
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+                s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? s;
         }
         catch (Exception) { /* a broken file: start fresh */ }
-        return new Settings();
+        // (an art folder that isn't there any more, or never was on this PC: the one beside the app)
+        if (string.IsNullOrWhiteSpace(s.ArtFolder) || !Directory.Exists(s.ArtFolder)) s.ArtFolder = Art.DefaultFolder;
+        return s;
     }
 
     /// <summary>A test run (--demo): nothing saved.</summary>

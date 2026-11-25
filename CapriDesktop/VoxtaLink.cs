@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -113,13 +114,28 @@ public sealed class VoxtaLink : IAsyncDisposable
         "through their mic. She can't see their screen, open their files or use their apps; she's a companion on " +
         "their desktop.";
 
-    Task TellWhereSheIs() => _sessionId is { } s
-        ? Send(new JsonObject
-        {
-            ["$type"] = "updateContext", ["sessionId"] = s, ["contextKey"] = "capri_desktop",
-            ["contexts"] = new JsonArray(new JsonObject { ["name"] = "capri_desktop", ["text"] = DesktopNote }),
-        })
-        : Task.CompletedTask;
+    /// <summary>How she uses her voice's tone tags, as the Cyberpunk mod tells her (its "tone" note): left alone the
+    /// model opens nearly every line with &lt;chuckling&gt;. Voxta's Emotion Tags stay on: the same tags are each
+    /// sentence's affect, which picks her poses and her face HUD's looks.</summary>
+    public const string ToneNote =
+        "Capri's tone markers: angry, sad, excited, sighing, embarrassed, soft, whispering and emphasis whenever they " +
+        "fit; they show on her face. Laughing and chuckling are rare: only when something is actually funny to her, at " +
+        "most once every several replies, and never at the start of a line. Her humor is in her words, deadpan; she " +
+        "doesn't laugh at her own lines.";
+
+    async Task TellWhereSheIs()
+    {
+        if (_sessionId is not { } s) return;
+        await Note(s, "capri_desktop", DesktopNote);
+        await Note(s, "tone", ToneNote);
+    }
+
+    /// <summary>A note for her chat (a Voxta context) under its own key: sent again, it replaces itself.</summary>
+    Task Note(Guid session, string key, string text) => Send(new JsonObject
+    {
+        ["$type"] = "updateContext", ["sessionId"] = session, ["contextKey"] = key,
+        ["contexts"] = new JsonArray(new JsonObject { ["name"] = key, ["text"] = text }),
+    });
 
     public Task Say(string text) => _sessionId is { } s
         ? Send(new JsonObject { ["$type"] = "send", ["sessionId"] = s, ["text"] = text, ["doReply"] = true })
@@ -142,8 +158,17 @@ public sealed class VoxtaLink : IAsyncDisposable
         switch (type)
         {
             case "welcome":
-                Status?.Invoke("Finding Capri…");
-                _ = Send(new JsonObject { ["$type"] = "loadCharactersList" });
+                CheckHerCharacter();
+                break;
+
+            case "listResourcesResult":
+                OnResources(m);
+                break;
+
+            case "deployResourceResult":
+                if (Bool(m, "success")) Log.Write($"voxta: installed her character, {Str(m, "name")} {Str(m, "version")}");
+                else Log.Write($"voxta: couldn't install her character: {Str(m, "error")}");
+                FindHer();
                 break;
 
             case "charactersListLoaded":
@@ -215,10 +240,73 @@ public sealed class VoxtaLink : IAsyncDisposable
         }
     }
 
+    // ---- her character, brought with the app, as the Cyberpunk mod brings it ----
+
+    /// <summary>Her character in the pack beside the app (Assets\capri.voxpak, the Cyberpunk mod's capri.voxpak: made
+    /// by voxta-module-cyberpunk game/pack/make_capri.py, CAPRI_ID and VERSION there). Update both when it changes.</summary>
+    public const string PackCharacterId = "de3da82c-ec4d-def5-6b3b-561a976d00df", PackVersion = "2.3.0";
+    static string PackPath => Path.Combine(AppContext.BaseDirectory, "Assets", "capri.voxpak");
+
+    /// <summary>Is her character in this Voxta at this version? (Voxta's listResources, as its own apps ask.)</summary>
+    void CheckHerCharacter()
+    {
+        if (!File.Exists(PackPath)) { FindHer(); return; }
+        Status?.Invoke("Checking her character…");
+        _ = Send(new JsonObject
+        {
+            ["$type"] = "listResources",
+            ["resources"] = new JsonArray(new JsonObject
+            {
+                ["kind"] = "Character", ["id"] = PackCharacterId, ["version"] = PackVersion,
+            }),
+        });
+    }
+
+    /// <summary>There at this version: on to finding her. Missing (or another version): her pack installed (Voxta's
+    /// deployResource; a copy the user edited is left alone, as with the mod's), then on.</summary>
+    void OnResources(JsonElement m)
+    {
+        var status = m.TryGetProperty("resources", out var list)
+            ? list.EnumerateArray().Where(r => Str(r, "id") is { } id && Guid.TryParse(id, out var g) && g == Guid.Parse(PackCharacterId))
+                .Select(r => Str(r, "status")).FirstOrDefault()
+            : null;
+        Log.Write($"voxta: her character {PackVersion}: {status ?? "no answer"}");
+        // (--reinstall: installed anyway, to test the install; harmless, as the Cyberpunk mod does it every conversation)
+        if (status == "Exists" && !Environment.GetCommandLineArgs().Contains("--reinstall")) { FindHer(); return; }
+        Status?.Invoke("Installing her character in Voxta…");
+        try
+        {
+            _ = Send(new JsonObject
+            {
+                ["$type"] = "deployResource",
+                ["id"] = PackCharacterId,
+                ["data"] = new JsonObject
+                {
+                    ["$type"] = "base64", ["name"] = "capri.voxpak",
+                    ["base64Data"] = Convert.ToBase64String(File.ReadAllBytes(PackPath)),
+                },
+            });
+        }
+        catch (IOException e)
+        {
+            Log.Write("voxta: couldn't read her character file: " + e.Message);
+            FindHer();
+        }
+    }
+
+    void FindHer()
+    {
+        Status?.Invoke("Finding Capri…");
+        _ = Send(new JsonObject { ["$type"] = "loadCharactersList" });
+    }
+
+    /// <summary>Her: the character from her pack if it's there, else one named as in the settings.</summary>
     void OnCharacters(JsonElement m)
     {
         var name = _settings.CharacterName;
-        var found = m.GetProperty("characters").EnumerateArray()
+        var all = m.GetProperty("characters").EnumerateArray().ToList();
+        var found = all.Select(c => Str(c, "id")).FirstOrDefault(id => Guid.TryParse(id, out var g) && g == Guid.Parse(PackCharacterId))
+            ?? all
             .Where(c => string.Equals(Str(c, "name")?.Trim(), name, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(c => Bool(c, "favorite"))
             .ThenByDescending(c => Str(c, "dateModified"))

@@ -5,8 +5,7 @@ namespace CapriDesktop;
 /// <summary>A small log of what she's doing: %AppData%\CapriDesktop\log.txt (started fresh each run).</summary>
 public static class Log
 {
-    static readonly string FilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CapriDesktop",
+    static string FilePath => Path.Combine(Settings.Folder,
         Environment.GetCommandLineArgs().Contains("--demo") ? "log-demo.txt" : "log.txt");
     static readonly object Gate = new();
     static bool _started;

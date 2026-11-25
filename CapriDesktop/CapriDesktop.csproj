@@ -8,11 +8,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CapriDesktop</AssemblyName>
     <RootNamespace>CapriDesktop</RootNamespace>
+    <Version>0.1.0</Version>
+    <ApplicationIcon>Assets\capri.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />
     <PackageReference Include="NAudio.WinMM" Version="3.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- her character, installed into the player's Voxta on start (VoxtaLink): the Cyberpunk mod's
+         capri.voxpak (voxta-module-cyberpunk game/pack/make_capri.py), copied as is -->
+    <None Include="Assets\capri.voxpak" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"
+          ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>

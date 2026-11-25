@@ -17,7 +17,10 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (!e.Args.Contains("--demo"))
+        // a test of a brand-new install: its own empty settings, beside any Capri already running
+        var fresh = e.Args.Contains("--fresh");
+        if (fresh) Settings.Folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CapriDesktop-fresh-" + DateTime.Now.Ticks);
+        if (!e.Args.Contains("--demo") && !fresh)
         {
             _only = new Mutex(true, OnlyOne, out var first);
             if (!first)

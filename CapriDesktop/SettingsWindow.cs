@@ -74,6 +74,27 @@ public sealed class SettingsWindow : Window
         Check("She changes idles on her own", _s.IdlesOnHerOwn, v => _s.IdlesOnHerOwn = v);
         Range("Quiet, a new idle every (seconds)", 5, 300, () => (_s.IdleMin, _s.IdleMax), (a, b) => (_s.IdleMin, _s.IdleMax) = (a, b));
         Check("Glitches", _s.Glitches, v => _s.Glitches = v);
+
+        Heading("Voxta");
+        Field("Voxta's address", _s.VoxtaUrl, v => _s.VoxtaUrl = string.IsNullOrWhiteSpace(v) ? "http://localhost:5384" : v.Trim());
+        Field("API key (only if your Voxta has a password)", _s.VoxtaApiKey ?? "",
+            v => _s.VoxtaApiKey = string.IsNullOrWhiteSpace(v) ? null : v.Trim(), secret: true);
+        Hint("These two take effect the next time Capri starts (right-click her, Quit, then start her again).");
+    }
+
+    void Field(string label, string value, Action<string> set, bool secret = false)
+    {
+        _body.Children.Add(new TextBlock { Text = label, Foreground = Text, Margin = new Thickness(0, 2, 0, 2) });
+        Control box = secret
+            ? new PasswordBox { Password = value, Width = 330, HorizontalAlignment = HorizontalAlignment.Left }
+            : new TextBox { Text = value, Width = 330, HorizontalAlignment = HorizontalAlignment.Left };
+        box.Margin = new Thickness(0, 0, 0, 6);
+        box.LostFocus += (_, _) =>
+        {
+            set(box is PasswordBox p ? p.Password : ((TextBox)box).Text);
+            Save();
+        };
+        _body.Children.Add(box);
     }
 
     void Save()

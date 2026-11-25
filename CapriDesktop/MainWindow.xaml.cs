@@ -74,6 +74,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // (a --fresh test of a new install runs beside the Capri you're using: it doesn't listen to the mic too)
+        if (Environment.GetCommandLineArgs().Contains("--fresh")) _settings.Mic = false;
         if (Demo)
         {
             Settings.ReadOnly = true;
