@@ -286,7 +286,8 @@ public partial class MainWindow : Window
         _voxta.ReplyEnded += id => Ui(() => _speaker.ReplyEnded(id));
         _voxta.Interrupted += () => Ui(_speaker.Interrupt);
         _voxta.Heard += (text, done) => Ui(() => OnHeard(text, done));
-        _voxta.Pairing += text => Ui(() => ShowPairing(text));
+        _voxta.Pairing += (text, big, small) => Ui(() => ShowPairing(text, big, small));
+        _voxta.WaitUntilSeen = () => _seen.Task;
         _speaker.LineStarted += OnLineStarted;
         _speaker.LineEnded += _ => _backToIdleAt = Now + BackToIdle;
         _speaker.MessageFinished += id =>
@@ -299,14 +300,43 @@ public partial class MainWindow : Window
 
     bool _pairing;
 
-    /// <summary>Pairing with Voxta: what to do, in her bubble, kept up until she's paired (or it's over).</summary>
-    void ShowPairing(string? text)
+    /// <summary>Done once she has been drawn on screen for a moment (a first start unpacks the app and loads all her
+    /// pictures first): pairing waits for it, so Voxta's prompt never comes before she can show its number.</summary>
+    readonly TaskCompletionSource _seen = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    protected override void OnContentRendered(EventArgs e)
+    {
+        base.OnContentRendered(e);
+        Log.Write("on screen");
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        timer.Tick += (_, _) => { timer.Stop(); _seen.TrySetResult(); };
+        timer.Start();
+    }
+
+    /// <summary>Pairing with Voxta, in her bubble: what to do, the number to pick (big, in her green), and a small line
+    /// under it; kept up until she's paired (or it's over).</summary>
+    void ShowPairing(string? text, string? big, string? small)
     {
         if (text is not null)
         {
             _pairing = true;
             _said.Clear();
-            BubbleText.Text = text;
+            BubbleText.Inlines.Clear();
+            BubbleText.Inlines.Add(new System.Windows.Documents.Run(text));
+            if (big is not null)
+            {
+                BubbleText.Inlines.Add(new System.Windows.Documents.LineBreak());
+                BubbleText.Inlines.Add(new System.Windows.Documents.Run(big)
+                {
+                    FontSize = 40, FontWeight = FontWeights.Bold,
+                    Foreground = new System.Windows.Media.SolidColorBrush(FaceHud.Green),
+                });
+            }
+            if (small is not null)
+            {
+                BubbleText.Inlines.Add(new System.Windows.Documents.LineBreak());
+                BubbleText.Inlines.Add(new System.Windows.Documents.Run(small) { FontSize = 11 });
+            }
             Bubble.Visibility = Visibility.Visible;
             _bubbleHideAt = -1;
             return;

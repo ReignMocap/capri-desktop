@@ -30,7 +30,13 @@ public sealed class VoxtaLink : IAsyncDisposable
     public event Action<Guid>? ReplyEnded;
     public event Action? Interrupted;                    // Voxta says stop talking (or dropped the reply)
     public event Action<string, bool>? Heard;            // what Voxta heard you say on the mic so far, and whether you're done
-    public event Action<string?>? Pairing;               // what to do to pair her with Voxta (null: paired, or given up)
+    /// <summary>Pairing with Voxta, for her bubble: what to do, the number (or code) to pick, shown big, and a small
+    /// line under it; all null: paired, or given up.</summary>
+    public event Action<string?, string?, string?>? Pairing;
+
+    /// <summary>Done once she's on screen: pairing waits for it, so Voxta's "pick a number" never comes before she can
+    /// show the number.</summary>
+    public Func<Task>? WaitUntilSeen { get; set; }
 
     /// <summary>The mic switched on or off: connect again, so Voxta hears (or stops hearing) it; her chat picks up
     /// where it was.</summary>
@@ -101,6 +107,12 @@ public sealed class VoxtaLink : IAsyncDisposable
     async Task<bool> PairAsync()
     {
         _pairedOnce = true;
+        // she's seen first, says what's coming, and only then is Voxta asked (its prompt shows at once)
+        if (WaitUntilSeen is { } seen) await seen();
+        Status?.Invoke("");
+        Pairing?.Invoke("Hi! I need Voxta's OK to talk to you. Voxta will ask you to approve me and pick a number: " +
+                        "I'll show you which one.", null, null);
+        try { await Task.Delay(3000, _stop.Token); } catch (OperationCanceledException) { return false; }
         using var http = new HttpClient { BaseAddress = new Uri(_settings.VoxtaUrl.TrimEnd('/') + "/") };
         while (!_stop.IsCancellationRequested)
         {
@@ -114,7 +126,7 @@ public sealed class VoxtaLink : IAsyncDisposable
                 if (!response.IsSuccessStatusCode)
                 {
                     Log.Write($"pairing: Voxta has no pairing ({(int)response.StatusCode})");
-                    Pairing?.Invoke(null);
+                    Pairing?.Invoke(null, null, null);
                     return false;
                 }
                 code = await response.Content.ReadFromJsonAsync<JsonElement>(_stop.Token);
@@ -122,7 +134,7 @@ public sealed class VoxtaLink : IAsyncDisposable
             catch (Exception e) when (!_stop.IsCancellationRequested)
             {
                 Log.Write("pairing: couldn't ask Voxta: " + e.Message);
-                Pairing?.Invoke(null);
+                Pairing?.Invoke(null, null, null);
                 return false;
             }
 
@@ -134,9 +146,11 @@ public sealed class VoxtaLink : IAsyncDisposable
             var number = Str(code, "binding_message");
             var prompted = Bool(code, "prompted") && !string.IsNullOrEmpty(number);
             Log.Write($"pairing: asked Voxta (prompted: {prompted})");
-            Pairing?.Invoke(prompted
-                ? $"Pair me with Voxta: in Voxta, approve \"Capri on your desktop\" and pick {number}.\n(No prompt? Open {verify} and enter {userCode}.)"
-                : $"Pair me with Voxta: open {verify} and enter {userCode}.");
+            if (prompted)
+                Pairing?.Invoke("In Voxta, approve \"Capri on your desktop\" and pick this number:", number,
+                    $"No prompt in Voxta? Open {verify} and enter {userCode}.");
+            else
+                Pairing?.Invoke($"Open {verify} in your browser and enter this code:", userCode, null);
             Status?.Invoke("Waiting to be paired with Voxta…");
 
             // her turn to wait: Voxta answers each poll with nothing yet, her key, or a no
@@ -157,7 +171,7 @@ public sealed class VoxtaLink : IAsyncDisposable
                         _settings.VoxtaApiKey = token;
                         _settings.Save();
                         Log.Write("pairing: approved, her key saved");
-                        Pairing?.Invoke(null);
+                        Pairing?.Invoke(null, null, null);
                         return true;
                     }
                     var reason = "";
@@ -166,7 +180,7 @@ public sealed class VoxtaLink : IAsyncDisposable
                     {
                         Log.Write($"pairing: turned down ({reason})");
                         _pairingRefused = true;
-                        Pairing?.Invoke(null);
+                        Pairing?.Invoke(null, null, null);
                         return false;
                     }
                     if (reason == "unknown_or_expired") { Log.Write("pairing: code expired, asking again"); break; }

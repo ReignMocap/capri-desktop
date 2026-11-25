@@ -1,6 +1,6 @@
 {
   "id": "CapriDesktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Reign",
   "voxta": ">=1.13.0",
   "label": "Capri on your desktop",

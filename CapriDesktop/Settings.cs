@@ -42,8 +42,8 @@ public sealed class Settings
     public double IdleMax { get; set; } = 40;
     public double SfxVolume { get; set; } = 0.5;      // her zap and glitch sounds (0: off, 1: as made)
     public double Opacity { get; set; } = 1.0;        // how solid she is (her body and face; not her speech bubble)
-    // she lands from a zip at a random size: { at least, at most } px tall
-    public bool RandomSize { get; set; } = true;
+    // she lands from a zip at a random size: { at least, at most } px tall (off unless you turn it on)
+    public bool RandomSize { get; set; }
     public double SizeMin { get; set; } = 80;
     public double SizeMax { get; set; } = 520;
     public bool Mic { get; set; } = true;             // Voxta listens to the mic: talk to her out loud
@@ -54,15 +54,23 @@ public sealed class Settings
 
     static string FilePath => Path.Combine(Folder, "settings.json");
 
+    /// <summary>Which of her settings changes a saved file has had (0: saved before there was any).</summary>
+    public int SettingsVersion { get; set; }
+    const int CurrentVersion = 2;
+
     public static Settings Load()
     {
-        var s = new Settings();
+        var s = new Settings { SettingsVersion = CurrentVersion };
         try
         {
             if (File.Exists(FilePath))
                 s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? s;
         }
         catch (Exception) { /* a broken file: start fresh */ }
+        // 2 (0.1.2): random size on zips was on by default and everyone found it annoying: off once for settings saved
+        // before; turned on again in Settings, it stays on
+        if (s.SettingsVersion < 2) s.RandomSize = false;
+        s.SettingsVersion = CurrentVersion;
         // (an art folder that isn't there any more, or never was on this PC: the one beside the app)
         if (string.IsNullOrWhiteSpace(s.ArtFolder) || !Directory.Exists(s.ArtFolder)) s.ArtFolder = Art.DefaultFolder;
         return s;
