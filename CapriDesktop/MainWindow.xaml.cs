@@ -286,6 +286,7 @@ public partial class MainWindow : Window
         _voxta.ReplyEnded += id => Ui(() => _speaker.ReplyEnded(id));
         _voxta.Interrupted += () => Ui(_speaker.Interrupt);
         _voxta.Heard += (text, done) => Ui(() => OnHeard(text, done));
+        _voxta.Pairing += text => Ui(() => ShowPairing(text));
         _speaker.LineStarted += OnLineStarted;
         _speaker.LineEnded += _ => _backToIdleAt = Now + BackToIdle;
         _speaker.MessageFinished += id =>
@@ -294,6 +295,26 @@ public partial class MainWindow : Window
             _bubbleHideAt = Now + Math.Max(MinReadSeconds, _said.Length / ReadCharsPerSecond);
         };
         _ = _voxta.StartAsync();
+    }
+
+    bool _pairing;
+
+    /// <summary>Pairing with Voxta: what to do, in her bubble, kept up until she's paired (or it's over).</summary>
+    void ShowPairing(string? text)
+    {
+        if (text is not null)
+        {
+            _pairing = true;
+            _said.Clear();
+            BubbleText.Text = text;
+            Bubble.Visibility = Visibility.Visible;
+            _bubbleHideAt = -1;
+            return;
+        }
+        if (!_pairing) return;
+        _pairing = false;
+        BubbleText.Text = "Paired with Voxta.";
+        _bubbleHideAt = Now + MinReadSeconds;
     }
 
     void OnLineStarted(Line line)

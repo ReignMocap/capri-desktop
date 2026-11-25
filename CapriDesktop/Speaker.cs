@@ -40,8 +40,6 @@ public sealed class Speaker : IDisposable
     public Speaker(Settings settings)
     {
         _http = new HttpClient { BaseAddress = new Uri(settings.VoxtaUrl.TrimEnd('/') + "/") };
-        if (!string.IsNullOrWhiteSpace(settings.VoxtaApiKey))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", settings.VoxtaApiKey);
         Settings = settings;
     }
 
@@ -130,7 +128,13 @@ public sealed class Speaker : IDisposable
     {
         try
         {
-            var wav = await _http.GetByteArrayAsync(url.TrimStart('/'));
+            // (her key as it is now: pairing can give her one while she's running)
+            using var request = new HttpRequestMessage(HttpMethod.Get, url.TrimStart('/'));
+            if (!string.IsNullOrWhiteSpace(Settings.VoxtaApiKey))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Settings.VoxtaApiKey);
+            using var response = await _http.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var wav = await response.Content.ReadAsByteArrayAsync();
             return await Task.Run(() => Decode(wav));
         }
         catch (Exception e)
