@@ -1,0 +1,44 @@
+# Push a tag named after the version to release Capri: v0.1.0. module.json and CapriDesktop.csproj carry it.
+#   release  Voxta's shared workflow: builds her Voxta module (CapriModule), creates the GitHub release, and with
+#            VOXTA_PUBLISH (a repository variable) lists it in Voxta's module source.
+#   app      her app on a Windows machine: the app zip her module downloads, and her installer, added to that release.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+jobs:
+  release:
+    uses: voxta-ai/voxta-module-actions/.github/workflows/release.yml@v1
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    with:
+      publish: ${{ vars.VOXTA_PUBLISH == 'true' }}
+
+  app:
+    needs: release
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Her app zip and installer
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          ./tools/make_release.ps1 -Version $version -Art "$PWD/art" -Out "$PWD/out" -Installer
+      - name: Add them to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          gh release upload "${{ github.ref_name }}" "out/Capri-Desktop-App-$version.zip" "out/Capri-Desktop-Setup-$version.exe" --clobber

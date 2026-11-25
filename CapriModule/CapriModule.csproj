@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Capri in Voxta's Games: Play downloads the Capri desktop app (this repository's release) and starts it. -->
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>CapriModule</RootNamespace>
+        <AssemblyName>CapriModule</AssemblyName>
+        <!-- Dependencies next to the DLL, so Voxta can load the build folder as a dev folder. -->
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+
+    <!-- The oldest Voxta it supports (module.json "voxta"); Voxta provides these at runtime. -->
+    <ItemGroup>
+        <PackageReference Include="Voxta.Sdk.Modules" Version="1.13.0" ExcludeAssets="runtime" />
+        <PackageReference Include="Voxta.Shared.ExternalProcesses" Version="1.13.0" ExcludeAssets="runtime" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\logo.png" />
+        <EmbeddedResource Include="Assets\Cover.jpg" />
+        <EmbeddedResource Include="Onboarding.md" />
+    </ItemGroup>
+
+</Project>

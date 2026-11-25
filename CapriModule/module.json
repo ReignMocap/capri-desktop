@@ -1,0 +1,9 @@
+{
+  "id": "CapriDesktop",
+  "version": "0.1.0",
+  "author": "Reign",
+  "voxta": ">=1.13.0",
+  "label": "Capri on your desktop",
+  "category": "Games",
+  "description": "Capri, the hologram from Voxta for Cyberpunk, as a companion on your Windows desktop. She stands on your taskbar, talks with you out loud in her own voice, lip syncs, glitches and zips around the screen in a crack of lightning. Play downloads her app the first time and starts her; she brings her own character. Work in progress."
+}

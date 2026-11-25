@@ -1,0 +1,11 @@
+<Project>
+  <!-- The module's builds anyone can repeat from the tag: locked packages, CI paths in the PDBs. (The desktop app beside
+       it doesn't use this.) -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+</Project>
